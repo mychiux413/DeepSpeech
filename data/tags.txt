@@ -1,0 +1,7 @@
+# 512
+# only access unicode and lower case
+industry
+finance
+education
+fintech
+# The last (non-comment) line needs to end with a newline.

@@ -3,6 +3,7 @@
 *.swp
 *.DS_Store
 .pit*
+.pytest_cache/
 /.run
 /werlog.js
 /runs
