@@ -158,3 +158,6 @@ def create_flags():
     f.register_validator('one_shot_infer',
                          lambda value: not value or os.path.isfile(value),
                          message='The file pointed to by --one_shot_infer must exist and be readable.')
+
+    # Tags Context
+    f.DEFINE_string('tags_config_path', 'data/tags.txt', 'path to the configuration file specifying the tags used by the network.')

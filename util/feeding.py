@@ -16,12 +16,15 @@ from util.text import text_to_char_array
 from util.flags import FLAGS
 from util.spectrogram_augmentations import augment_freq_time_mask, augment_dropout, augment_pitch_and_tempo, augment_speed_up
 from util.audio import read_frames_from_file, vad_split, DEFAULT_FORMAT
+from util.tags import Tags
 
 
 def read_csvs(csv_files):
     sets = []
     for csv in csv_files:
         file = pandas.read_csv(csv, encoding='utf-8', na_filter=False)
+        assert 'wav_filename' in file, 'invalid csv columns, `wav_filename` not found'
+        assert 'tags' in file, 'invalid csv columns, `tags` not found'
         #FIXME: not cross-platform
         csv_dir = os.path.dirname(os.path.abspath(csv))
         file['wav_filename'] = file['wav_filename'].str.replace(r'(^[^/])', lambda m: os.path.join(csv_dir, m.group(1))) # pylint: disable=cell-var-from-loop
@@ -79,10 +82,10 @@ def audiofile_to_features(wav_filename, train_phase=False):
     return features, features_len
 
 
-def entry_to_features(wav_filename, transcript, train_phase):
+def entry_to_features(wav_filename, transcript, tags, train_phase):
     # https://bugs.python.org/issue32117
     features, features_len = audiofile_to_features(wav_filename, train_phase=train_phase)
-    return wav_filename, features, features_len, tf.SparseTensor(*transcript)
+    return wav_filename, features, features_len, tf.SparseTensor(*transcript), tags
 
 
 def to_sparse_tuple(sequence):
@@ -94,15 +97,17 @@ def to_sparse_tuple(sequence):
     return indices, sequence, shape
 
 
-def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_phase=False):
+def create_dataset(csvs, batch_size, tags_config_path, enable_cache=False, cache_path=None, train_phase=False):
     df = read_csvs(csvs)
     df.sort_values(by='wav_filesize', inplace=True)
 
     df['transcript'] = df.apply(text_to_char_array, alphabet=Config.alphabet, result_type='reduce', axis=1)
 
+    tags = Tags(tags_config_path)
+
     def generate_values():
         for _, row in df.iterrows():
-            yield row.wav_filename, to_sparse_tuple(row.transcript)
+            yield row.wav_filename, to_sparse_tuple(row.transcript), tf.cast(tags.encode(row.tags), tf.float32)
 
     # Batching a dataset of 2D SparseTensors creates 3D batches, which fail
     # when passed to tf.nn.ctc_loss, so we reshape them to remove the extra
@@ -123,7 +128,7 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
     process_fn = partial(entry_to_features, train_phase=train_phase)
 
     dataset = (tf.data.Dataset.from_generator(generate_values,
-                                              output_types=(tf.string, (tf.int64, tf.int32, tf.int64)))
+                                              output_types=(tf.string, (tf.int64, tf.int32, tf.int64), (tf.float32,)))
                               .map(process_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE))
 
     if enable_cache:
