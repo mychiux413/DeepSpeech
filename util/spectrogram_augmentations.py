@@ -1,4 +1,6 @@
 import tensorflow as tf
+import tensorflow.compat.v1 as tfv1
+from util.sparse_image_warp import sparse_image_warp
 
 def augment_freq_time_mask(mel_spectrogram,
                            frequency_masking_para=30,
@@ -64,3 +66,74 @@ def augment_speed_up(spectrogram,
 def augment_dropout(spectrogram,
                     keep_prob=0.95):
     return tf.nn.dropout(spectrogram, rate=1-keep_prob)
+
+
+def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1):
+    """Reference: https://arxiv.org/pdf/1904.08779.pdf
+    Args:
+        spectrogram: `[batch, time, frequency]` float `Tensor`
+        time_warping_para: 'W' parameter in paper
+        interpolation_order: used to put into `sparse_image_warp`
+        regularization_weight: used to put into `sparse_image_warp`
+        num_boundary_points: used to put into `sparse_image_warp`,
+                            default=1 means boundary points on 4 corners of the image
+        num_control_points: number of control points
+    Returns:
+        warped_spectrogram: `[batch, time, frequency]` float `Tensor` with same
+            type as input image.
+    """
+
+    # resize to fit `sparse_image_warp`'s input shape
+    # (1, time steps, freq, 1), batch_size must be 1
+    spectrogram = tf.expand_dims(spectrogram, -1)
+
+    original_shape = tf.shape(spectrogram)
+    tau, freq_size = original_shape[1], original_shape[2]
+
+    # to protect short audio
+    time_warping_para = tf.math.minimum(
+        time_warping_para, tf.math.subtract(tf.math.floordiv(tau, 2), 1))
+
+    choosen_freqs = tf.random.shuffle(tf.add(tf.range(freq_size), 1))[
+        0: num_control_points]
+
+    sources = []
+    dests = []
+    for i in range(num_control_points):
+        source_max = tau - time_warping_para - 1
+        # to protect short audio
+        source_min = tf.math.minimum(source_max - 1, time_warping_para)
+        rand_source_time = tfv1.random_uniform(  # generate source points `t` of time axis between (W, tau-W)
+            [], source_min, source_max, tf.int32)
+        rand_dest_time = tfv1.random_uniform(  # generate dest points `t'` of time axis between (t-W, t+W)
+            [], tf.math.maximum(tf.math.subtract(rand_source_time, time_warping_para), 0), tf.math.add(rand_source_time, time_warping_para), tf.int32)
+
+        # if choosen_freq == tau -1 => crash
+        choosen_freq = tf.cond(tf.equal(choosen_freqs[i], tau-1),
+                               lambda: choosen_freqs[i] + # pylint: disable=cell-var-from-loop
+                               1,  # pylint: disable=cell-var-from-loop
+                               lambda: choosen_freqs[i])  # pylint: disable=cell-var-from-loop
+        sources.append([0, choosen_freq])
+        sources.append([rand_source_time, choosen_freq])
+        sources.append([tau, choosen_freq])
+
+        dests.append([0, choosen_freq])
+        dests.append([rand_dest_time, choosen_freq])
+        dests.append([tau, choosen_freq])
+
+    source_control_point_locations = tf.cast([sources], tf.float32)
+
+    dest_control_point_locations = tf.cast([dests], tf.float32)
+
+    # debug
+    # print('spectrogram', spectrogram)
+    # spectrogram = tf.Print(spectrogram, sources, message='sources', first_n=1000)
+    # spectrogram = tf.Print(spectrogram, dests, message='dests', first_n=1000)
+
+    warped_spectrogram, _ = sparse_image_warp(spectrogram,
+                                              source_control_point_locations=source_control_point_locations,
+                                              dest_control_point_locations=dest_control_point_locations,
+                                              interpolation_order=interpolation_order,
+                                              regularization_weight=regularization_weight,
+                                              num_boundary_points=num_boundary_points)
+    return tf.reshape(warped_spectrogram, shape=(1, -1, freq_size))
