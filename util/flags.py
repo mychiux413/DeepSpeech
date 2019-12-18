@@ -25,11 +25,15 @@ def create_flags():
     # ================
 
     f.DEFINE_float('data_aug_features_additive', 0, 'std of the Gaussian additive noise')
+    f.DEFINE_float('data_aug_features_additive_prob', 0.1, 'aug features additive prob')
     f.DEFINE_float('data_aug_features_multiplicative', 0, 'std of normal distribution around 1 for multiplicative noise')
+    f.DEFINE_float('data_aug_features_multiplicative_prob', 0.1, 'aug features multiplicative prob')
 
     f.DEFINE_float('augmentation_spec_dropout_keeprate', 1, 'keep rate of dropout augmentation on spectrogram (if 1, no dropout will be performed on spectrogram)')
+    f.DEFINE_float('augmentation_spec_dropout_keeprate_prob', 0.05, 'spec dropout keeprate prob')
 
     f.DEFINE_boolean('augmentation_sparse_warp', False, 'whether to use spectrogram sparse warp')
+    f.DEFINE_float('augmentation_sparse_warp_prob', 0.5, 'sparse warp prob')
     f.DEFINE_integer('augmentation_sparse_warp_num_control_points', 1, 'specify number of control points')
     f.DEFINE_integer('augmentation_sparse_warp_time_warping_para', 80, 'time_warping_para')
     f.DEFINE_integer('augmentation_sparse_warp_interpolation_order', 2, 'sparse_warp_interpolation_order')
@@ -37,14 +41,17 @@ def create_flags():
     f.DEFINE_integer('augmentation_sparse_warp_num_boundary_points', 1, 'sparse_warp_num_boundary_points')
 
     f.DEFINE_boolean('augmentation_freq_and_time_masking', False, 'whether to use frequency and time masking augmentation')
+    f.DEFINE_float('augmentation_freq_and_time_masking_prob', 0.8, 'freq and time masking prob')
     f.DEFINE_integer('augmentation_freq_and_time_masking_freq_mask_range', 5, 'max range of masks in the frequency domain when performing freqtime-mask augmentation')
     f.DEFINE_integer('augmentation_freq_and_time_masking_number_freq_masks', 3, 'number of masks in the frequency domain when performing freqtime-mask augmentation')
     f.DEFINE_integer('augmentation_freq_and_time_masking_time_mask_range', 2, 'max range of masks in the time domain when performing freqtime-mask augmentation')
     f.DEFINE_integer('augmentation_freq_and_time_masking_number_time_masks', 3, 'number of masks in the time domain when performing freqtime-mask augmentation')
 
     f.DEFINE_float('augmentation_speed_up_std', 0, 'std for speeding-up tempo. If std is 0, this augmentation is not performed')
+    f.DEFINE_float('augmentation_speed_up_prob', 0.2, 'speed up prob')
 
     f.DEFINE_boolean('augmentation_pitch_and_tempo_scaling', False, 'whether to use spectrogram speed and tempo scaling')
+    f.DEFINE_float('augmentation_pitch_and_tempo_scaling_prob', 0.5, 'pitch and tempo prob')
     f.DEFINE_float('augmentation_pitch_and_tempo_scaling_min_pitch', 0.95, 'min value of pitch scaling')
     f.DEFINE_float('augmentation_pitch_and_tempo_scaling_max_pitch', 1.2, 'max value of pitch scaling')
     f.DEFINE_float('augmentation_pitch_and_tempo_scaling_max_tempo', 1.2, 'max vlaue of tempo scaling')
