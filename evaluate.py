@@ -69,8 +69,8 @@ def evaluate(test_csvs, create_model, try_loading):
     transposed = tf.nn.softmax(tf.transpose(a=logits, perm=[1, 0, 2]))
 
     loss = tfv1.nn.ctc_loss(labels=batch_y,
-                          inputs=logits,
-                          sequence_length=batch_x_len)
+                            inputs=logits,
+                            sequence_length=batch_x_len)
 
     tfv1.train.get_or_create_global_step()
 
