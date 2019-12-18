@@ -42,6 +42,7 @@ def create_flags():
     f.DEFINE_float('augmentation_pitch_and_tempo_scaling_max_pitch', 1.2, 'max value of pitch scaling')
     f.DEFINE_float('augmentation_pitch_and_tempo_scaling_max_tempo', 1.2, 'max vlaue of tempo scaling')
 
+    f.DEFINE_boolean('ctc_loss_ignore_longer_outputs_than_inputs', False, 'augmentation might shrink time steps to cause ctc loss outputs longer than inputs, enable to prevent crash')
 
     # Global Constants
     # ================
