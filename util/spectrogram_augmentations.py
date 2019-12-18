@@ -1,74 +1,50 @@
 import tensorflow as tf
 import tensorflow.compat.v1 as tfv1
 from util.sparse_image_warp import sparse_image_warp
+import numpy as np
 
-def augment_freq_time_mask(mel_spectrogram,
+
+def augment_freq_time_mask(spectrogram,
                            frequency_masking_para=30,
                            time_masking_para=10,
                            frequency_mask_num=3,
-                           time_mask_num=3):
-    freq_max = tf.shape(mel_spectrogram)[1]
-    time_max = tf.shape(mel_spectrogram)[2]
-    # Frequency masking
-    for _ in range(frequency_mask_num):
-        f = tf.random.uniform(shape=(), minval=0, maxval=frequency_masking_para, dtype=tf.dtypes.int32)
-        f0 = tf.random.uniform(shape=(), minval=0, maxval=freq_max - f, dtype=tf.dtypes.int32)
-        value_ones_freq_prev = tf.ones(shape=[1, f0, time_max])
-        value_zeros_freq = tf.zeros(shape=[1, f, time_max])
-        value_ones_freq_next = tf.ones(shape=[1, freq_max-(f0+f), time_max])
-        freq_mask = tf.concat([value_ones_freq_prev, value_zeros_freq, value_ones_freq_next], axis=1)
-        #mel_spectrogram[:, f0:f0 + f, :] = 0 #can't assign to tensor
-        #mel_spectrogram[:, f0:f0 + f, :] = value_zeros_freq #can't assign to tensor
-        mel_spectrogram = mel_spectrogram*freq_mask
+                           time_mask_num=3,
+                           prob=0.2):
+    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
+                   lambda: spectrogram,
+                   lambda: _do_freq_time_mask(
+                       spectrogram, frequency_masking_para, time_masking_para, frequency_mask_num, time_mask_num)
+                   )
 
-    # Time masking
-    for _ in range(time_mask_num):
-        t = tf.random.uniform(shape=(), minval=0, maxval=time_masking_para, dtype=tf.dtypes.int32)
-        t0 = tf.random.uniform(shape=(), minval=0, maxval=time_max - t, dtype=tf.dtypes.int32)
-        value_zeros_time_prev = tf.ones(shape=[1, freq_max, t0])
-        value_zeros_time = tf.zeros(shape=[1, freq_max, t])
-        value_zeros_time_next = tf.ones(shape=[1, freq_max, time_max-(t0+t)])
-        time_mask = tf.concat([value_zeros_time_prev, value_zeros_time, value_zeros_time_next], axis=2)
-        #mel_spectrogram[:, :, t0:t0 + t] = 0 #can't assign to tensor
-        #mel_spectrogram[:, :, t0:t0 + t] = value_zeros_time #can't assign to tensor
-        mel_spectrogram = mel_spectrogram*time_mask
-
-    return mel_spectrogram
 
 def augment_pitch_and_tempo(spectrogram,
                             max_tempo=1.2,
                             max_pitch=1.1,
-                            min_pitch=0.95):
-    original_shape = tf.shape(spectrogram)
-    choosen_pitch = tf.random.uniform(shape=(), minval=min_pitch, maxval=max_pitch)
-    choosen_tempo = tf.random.uniform(shape=(), minval=1, maxval=max_tempo)
-    new_height = tf.cast(tf.cast(original_shape[1], tf.float32)*choosen_pitch, tf.int32)
-    new_width = tf.cast(tf.cast(original_shape[2], tf.float32)/(choosen_tempo), tf.int32)
-    spectrogram_aug = tf.image.resize_bilinear(tf.expand_dims(spectrogram, -1), [new_height, new_width])
-    spectrogram_aug = tf.image.crop_to_bounding_box(spectrogram_aug, offset_height=0, offset_width=0, target_height=tf.minimum(original_shape[1], new_height), target_width=tf.shape(spectrogram_aug)[2])
-    spectrogram_aug = tf.cond(choosen_pitch < 1,
-                              lambda: tf.image.pad_to_bounding_box(spectrogram_aug, offset_height=0, offset_width=0,
-                                                                   target_height=original_shape[1], target_width=tf.shape(spectrogram_aug)[2]),
-                              lambda: spectrogram_aug)
-    return spectrogram_aug[:, :, :, 0]
+                            min_pitch=0.95,
+                            prob=0.2):
+    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
+                   lambda: spectrogram,
+                   lambda: _do_pitch_and_tempo(
+                       spectrogram, max_tempo, max_pitch, min_pitch)
+                   )
 
 
 def augment_speed_up(spectrogram,
-                     speed_std=0.1):
-    original_shape = tf.shape(spectrogram)
-    choosen_speed = tf.math.abs(tf.random.normal(shape=(), stddev=speed_std)) # abs makes sure the augmention will only speed up
-    choosen_speed = 1 + choosen_speed
-    new_height = tf.cast(tf.cast(original_shape[1], tf.float32), tf.int32)
-    new_width = tf.cast(tf.cast(original_shape[2], tf.float32)/(choosen_speed), tf.int32)
-    spectrogram_aug = tf.image.resize_bilinear(tf.expand_dims(spectrogram, -1), [new_height, new_width])
-    return spectrogram_aug[:, :, :, 0]
-
-def augment_dropout(spectrogram,
-                    keep_prob=0.95):
-    return tf.nn.dropout(spectrogram, rate=1-keep_prob)
+                     speed_std=0.1, prob=0.2):
+    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
+                   lambda: spectrogram,
+                   lambda: _do_speed_up(spectrogram, speed_std)
+                   )
 
 
-def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1):
+def augment_dropout(spectrogram, keep_prob=0.95, prob=0.2):
+    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
+                   lambda: spectrogram,
+                   lambda: _do_augment_dropout(spectrogram, keep_prob)
+                   )
+
+
+def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1, prob=0.2):
     """Reference: https://arxiv.org/pdf/1904.08779.pdf
     Args:
         spectrogram: `[batch, time, frequency]` float `Tensor`
@@ -82,7 +58,96 @@ def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2
         warped_spectrogram: `[batch, time, frequency]` float `Tensor` with same
             type as input image.
     """
+    return tf.cond(tf.math.greater(np.random.uniform(0.0, 1.0), prob),
+                   lambda: spectrogram,
+                   lambda: _do_sparse_warp(spectrogram, time_warping_para, interpolation_order, regularization_weight,
+                                           num_boundary_points, num_control_points)
+                   )
 
+
+def _do_augment_dropout(spectrogram,
+                        keep_prob=0.95):
+    return tf.nn.dropout(spectrogram, rate=1-keep_prob)
+
+
+def _do_freq_time_mask(mel_spectrogram,
+                       frequency_masking_para=30,
+                       time_masking_para=10,
+                       frequency_mask_num=3,
+                       time_mask_num=3):
+    time_max = tf.shape(mel_spectrogram)[1]
+    freq_max = tf.shape(mel_spectrogram)[2]
+    # Frequency masking
+    for _ in range(frequency_mask_num):
+        f = tf.random.uniform(
+            shape=(), minval=0, maxval=frequency_masking_para, dtype=tf.dtypes.int32)
+        f0 = tf.random.uniform(
+            shape=(), minval=0, maxval=freq_max - f, dtype=tf.dtypes.int32)
+        value_ones_freq_prev = tf.ones(shape=[1, time_max, f0])
+        value_zeros_freq = tf.zeros(shape=[1, time_max, f])
+        value_ones_freq_next = tf.ones(shape=[1, time_max, freq_max-(f0+f)])
+        freq_mask = tf.concat(
+            [value_ones_freq_prev, value_zeros_freq, value_ones_freq_next], axis=2)
+        # mel_spectrogram[:, f0:f0 + f, :] = 0 #can't assign to tensor
+        # mel_spectrogram[:, f0:f0 + f, :] = value_zeros_freq #can't assign to tensor
+        mel_spectrogram = mel_spectrogram*freq_mask
+
+    # Time masking
+    for _ in range(time_mask_num):
+        t = tf.random.uniform(shape=(), minval=0,
+                              maxval=time_masking_para, dtype=tf.dtypes.int32)
+        t0 = tf.random.uniform(
+            shape=(), minval=0, maxval=time_max - t, dtype=tf.dtypes.int32)
+        value_zeros_time_prev = tf.ones(shape=[1, t0, freq_max])
+        value_zeros_time = tf.zeros(shape=[1, t, freq_max])
+        value_zeros_time_next = tf.ones(shape=[1, time_max-(t0+t), freq_max])
+        time_mask = tf.concat(
+            [value_zeros_time_prev, value_zeros_time, value_zeros_time_next], axis=1)
+        # mel_spectrogram[:, :, t0:t0 + t] = 0 #can't assign to tensor
+        # mel_spectrogram[:, :, t0:t0 + t] = value_zeros_time #can't assign to tensor
+        mel_spectrogram = mel_spectrogram*time_mask
+
+    return mel_spectrogram
+
+
+def _do_pitch_and_tempo(spectrogram,
+                        max_tempo=1.2,
+                        max_pitch=1.1,
+                        min_pitch=0.95):
+    original_shape = tf.shape(spectrogram)
+    choosen_pitch = tf.random.uniform(
+        shape=(), minval=min_pitch, maxval=max_pitch)
+    choosen_tempo = tf.random.uniform(shape=(), minval=1, maxval=max_tempo)
+    new_freq_size = tf.cast(
+        tf.cast(original_shape[2], tf.float32)*choosen_pitch, tf.int32)
+    new_time_size = tf.cast(
+        tf.cast(original_shape[1], tf.float32)/(choosen_tempo), tf.int32)
+    spectrogram_aug = tf.image.resize_bilinear(
+        tf.expand_dims(spectrogram, -1), [new_time_size, new_freq_size])
+    spectrogram_aug = tf.image.crop_to_bounding_box(spectrogram_aug, offset_height=0, offset_width=0, target_height=tf.shape(
+        spectrogram_aug)[1], target_width=tf.minimum(original_shape[2], new_freq_size))
+    spectrogram_aug = tf.cond(choosen_pitch < 1,
+                              lambda: tf.image.pad_to_bounding_box(spectrogram_aug, offset_height=0, offset_width=0,
+                                                                   target_height=tf.shape(spectrogram_aug)[1], target_width=original_shape[2]),
+                              lambda: spectrogram_aug)
+    return spectrogram_aug[:, :, :, 0]
+
+
+def _do_speed_up(spectrogram,
+                 speed_std=0.1):
+    original_shape = tf.shape(spectrogram)
+    # abs makes sure the augmention will only speed up
+    choosen_speed = tf.math.abs(tf.random.normal(shape=(), stddev=speed_std))
+    choosen_speed = 1 + choosen_speed
+    new_freq_size = tf.cast(tf.cast(original_shape[2], tf.float32), tf.int32)
+    new_time_size = tf.cast(
+        tf.cast(original_shape[1], tf.float32)/(choosen_speed), tf.int32)
+    spectrogram_aug = tf.image.resize_bilinear(
+        tf.expand_dims(spectrogram, -1), [new_time_size, new_freq_size])
+    return spectrogram_aug[:, :, :, 0]
+
+
+def _do_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1):
     # resize to fit `sparse_image_warp`'s input shape
     # (1, time steps, freq, 1), batch_size must be 1
     spectrogram = tf.expand_dims(spectrogram, -1)
@@ -101,7 +166,6 @@ def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2
     dests = []
     for i in range(num_control_points):
         source_max = tau - time_warping_para - 1
-        # to protect short audio
         source_min = tf.math.minimum(source_max - 1, time_warping_para)
         rand_source_time = tfv1.random_uniform(  # generate source points `t` of time axis between (W, tau-W)
             [], source_min, source_max, tf.int32)
