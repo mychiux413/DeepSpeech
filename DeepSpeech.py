@@ -697,7 +697,7 @@ def finetune_lm_params():
         for sample in samples:
             stats.append({
                 'param': alpha,
-                'result': sample['wer'],
+                'result': sample['word_distance'],
             })
 
     best_alpha = finetune_parabola(stats, FLAGS.finetune_lm_alpha_min, FLAGS.finetune_lm_alpha_max)
@@ -713,7 +713,7 @@ def finetune_lm_params():
         for sample in samples:
             stats.append({
                 'param': beta,
-                'result': sample['wer'],
+                'result': sample['word_distance'],
             })
     # best_beta = pick_lowest_param(stats)
     best_beta = finetune_parabola(stats, FLAGS.finetune_lm_beta_min, FLAGS.finetune_lm_beta_max)
@@ -731,7 +731,7 @@ def finetune_lm_params():
         for sample in samples:
             stats.append({
                 'param': alpha,
-                'result': sample['wer'],
+                'result': sample['word_distance'],
             })
 
     best_alpha = finetune_parabola(stats, FLAGS.finetune_lm_alpha_min, FLAGS.finetune_lm_alpha_max)
