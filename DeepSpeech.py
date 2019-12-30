@@ -127,6 +127,7 @@ def rnn_impl_static_rnn(x, seq_length, previous_state, reuse):
     with tfv1.variable_scope('cudnn_lstm/rnn/multi_rnn_cell'):
         # Forward direction cell:
         fw_cell = tfv1.nn.rnn_cell.LSTMCell(Config.n_cell_dim,
+                                            forget_bias=0,
                                             reuse=reuse,
                                             name='cudnn_compatible_lstm_cell')
 
@@ -232,11 +233,17 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     total_loss = tfv1.nn.ctc_loss(labels=batch_y, inputs=logits, sequence_length=batch_seq_len,
                                   ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
 
-    # Check if any files lead to non finite loss
-    non_finite_files = tf.gather(batch_filenames, tfv1.where(~tf.math.is_finite(total_loss)))
+    # >> for debugging
+    # total_loss = tf.concat((total_loss, [np.inf]), axis=0)
+    # batch_filenames = tf.concat((batch_filenames, ['_']), axis=0)
 
+    is_finite_loss = tf.math.is_finite(total_loss)
+    # Check if any files lead to non finite loss
+    non_finite_files = tf.gather(batch_filenames, tfv1.where(tf.math.logical_not(is_finite_loss)))
+
+    total_finite_loss = tf.gather(total_loss, tfv1.where(is_finite_loss))
     # Calculate the average loss across the batch
-    avg_loss = tf.reduce_mean(input_tensor=total_loss)
+    avg_loss = tf.reduce_mean(input_tensor=total_finite_loss)
 
     # Finally we return the average loss
     return avg_loss, non_finite_files
