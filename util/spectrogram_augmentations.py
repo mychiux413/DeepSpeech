@@ -1,82 +1,15 @@
 import tensorflow as tf
 import tensorflow.compat.v1 as tfv1
 from util.sparse_image_warp import sparse_image_warp
-import numpy as np
 
 
 def augment_freq_time_mask(spectrogram,
                            frequency_masking_para=30,
                            time_masking_para=10,
                            frequency_mask_num=3,
-                           time_mask_num=3,
-                           prob=0.2):
-    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
-                   lambda: spectrogram,
-                   lambda: _do_freq_time_mask(
-                       spectrogram, frequency_masking_para, time_masking_para, frequency_mask_num, time_mask_num)
-                   )
-
-
-def augment_pitch_and_tempo(spectrogram,
-                            max_tempo=1.2,
-                            max_pitch=1.1,
-                            min_pitch=0.95,
-                            prob=0.2):
-    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
-                   lambda: spectrogram,
-                   lambda: _do_pitch_and_tempo(
-                       spectrogram, max_tempo, max_pitch, min_pitch)
-                   )
-
-
-def augment_speed_up(spectrogram,
-                     speed_std=0.1, prob=0.2):
-    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
-                   lambda: spectrogram,
-                   lambda: _do_speed_up(spectrogram, speed_std)
-                   )
-
-
-def augment_dropout(spectrogram, keep_prob=0.95, prob=0.2):
-    return tf.cond(tf.math.greater(tfv1.random_uniform([], 0.0, 1.0, tf.float32), prob),
-                   lambda: spectrogram,
-                   lambda: _do_augment_dropout(spectrogram, keep_prob)
-                   )
-
-
-def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1, prob=0.2):
-    """Reference: https://arxiv.org/pdf/1904.08779.pdf
-    Args:
-        spectrogram: `[batch, time, frequency]` float `Tensor`
-        time_warping_para: 'W' parameter in paper
-        interpolation_order: used to put into `sparse_image_warp`
-        regularization_weight: used to put into `sparse_image_warp`
-        num_boundary_points: used to put into `sparse_image_warp`,
-                            default=1 means boundary points on 4 corners of the image
-        num_control_points: number of control points
-    Returns:
-        warped_spectrogram: `[batch, time, frequency]` float `Tensor` with same
-            type as input image.
-    """
-    return tf.cond(tf.math.greater(np.random.uniform(0.0, 1.0), prob),
-                   lambda: spectrogram,
-                   lambda: _do_sparse_warp(spectrogram, time_warping_para, interpolation_order, regularization_weight,
-                                           num_boundary_points, num_control_points)
-                   )
-
-
-def _do_augment_dropout(spectrogram,
-                        keep_prob=0.95):
-    return tf.nn.dropout(spectrogram, rate=1-keep_prob)
-
-
-def _do_freq_time_mask(mel_spectrogram,
-                       frequency_masking_para=30,
-                       time_masking_para=10,
-                       frequency_mask_num=3,
-                       time_mask_num=3):
-    time_max = tf.shape(mel_spectrogram)[1]
-    freq_max = tf.shape(mel_spectrogram)[2]
+                           time_mask_num=3):
+    time_max = tf.shape(spectrogram)[1]
+    freq_max = tf.shape(spectrogram)[2]
     # Frequency masking
     for _ in range(frequency_mask_num):
         f = tf.random.uniform(
@@ -90,7 +23,7 @@ def _do_freq_time_mask(mel_spectrogram,
             [value_ones_freq_prev, value_zeros_freq, value_ones_freq_next], axis=2)
         # mel_spectrogram[:, f0:f0 + f, :] = 0 #can't assign to tensor
         # mel_spectrogram[:, f0:f0 + f, :] = value_zeros_freq #can't assign to tensor
-        mel_spectrogram = mel_spectrogram*freq_mask
+        spectrogram = spectrogram*freq_mask
 
     # Time masking
     for _ in range(time_mask_num):
@@ -105,15 +38,15 @@ def _do_freq_time_mask(mel_spectrogram,
             [value_zeros_time_prev, value_zeros_time, value_zeros_time_next], axis=1)
         # mel_spectrogram[:, :, t0:t0 + t] = 0 #can't assign to tensor
         # mel_spectrogram[:, :, t0:t0 + t] = value_zeros_time #can't assign to tensor
-        mel_spectrogram = mel_spectrogram*time_mask
+        spectrogram = spectrogram*time_mask
 
-    return mel_spectrogram
+    return spectrogram
 
 
-def _do_pitch_and_tempo(spectrogram,
-                        max_tempo=1.2,
-                        max_pitch=1.1,
-                        min_pitch=0.95):
+def augment_pitch_and_tempo(spectrogram,
+                            max_tempo=1.2,
+                            max_pitch=1.1,
+                            min_pitch=0.95):
     original_shape = tf.shape(spectrogram)
     choosen_pitch = tf.random.uniform(
         shape=(), minval=min_pitch, maxval=max_pitch)
@@ -133,8 +66,8 @@ def _do_pitch_and_tempo(spectrogram,
     return spectrogram_aug[:, :, :, 0]
 
 
-def _do_speed_up(spectrogram,
-                 speed_std=0.1):
+def augment_speed_up(spectrogram,
+                     speed_std=0.1):
     original_shape = tf.shape(spectrogram)
     # abs makes sure the augmention will only speed up
     choosen_speed = tf.math.abs(tf.random.normal(shape=(), stddev=speed_std))
@@ -147,7 +80,24 @@ def _do_speed_up(spectrogram,
     return spectrogram_aug[:, :, :, 0]
 
 
-def _do_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1):
+def augment_dropout(spectrogram, keep_prob=0.95):
+    return tf.nn.dropout(spectrogram, rate=1-keep_prob)
+
+
+def augment_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, regularization_weight=0.0, num_boundary_points=1, num_control_points=1):
+    """Reference: https://arxiv.org/pdf/1904.08779.pdf
+    Args:
+        spectrogram: `[batch, time, frequency]` float `Tensor`
+        time_warping_para: 'W' parameter in paper
+        interpolation_order: used to put into `sparse_image_warp`
+        regularization_weight: used to put into `sparse_image_warp`
+        num_boundary_points: used to put into `sparse_image_warp`,
+                            default=1 means boundary points on 4 corners of the image
+        num_control_points: number of control points
+    Returns:
+        warped_spectrogram: `[batch, time, frequency]` float `Tensor` with same
+            type as input image.
+    """
     # resize to fit `sparse_image_warp`'s input shape
     # (1, time steps, freq, 1), batch_size must be 1
     spectrogram = tf.expand_dims(spectrogram, -1)
@@ -159,7 +109,8 @@ def _do_sparse_warp(spectrogram, time_warping_para=80, interpolation_order=2, re
     time_warping_para = tf.math.minimum(
         time_warping_para, tf.math.subtract(tf.math.floordiv(tau, 2), 1))
 
-    choosen_freqs = tf.random.shuffle(tf.add(tf.range(freq_size - 3), 1))[0: num_control_points]
+    choosen_freqs = tf.random.shuffle(
+        tf.add(tf.range(freq_size - 3), 1))[0: num_control_points]
 
     sources = []
     dests = []

@@ -43,13 +43,11 @@ def samples_to_mfccs(samples, sample_rate, train_phase=False):
             spectrogram = augment_pitch_and_tempo(spectrogram,
                                                   max_tempo=FLAGS.augmentation_pitch_and_tempo_scaling_max_tempo,
                                                   max_pitch=FLAGS.augmentation_pitch_and_tempo_scaling_max_pitch,
-                                                  min_pitch=FLAGS.augmentation_pitch_and_tempo_scaling_min_pitch,
-                                                  prob=FLAGS.augmentation_pitch_and_tempo_scaling_prob)
+                                                  min_pitch=FLAGS.augmentation_pitch_and_tempo_scaling_min_pitch)
 
         if FLAGS.augmentation_speed_up_std > 0:
             spectrogram = augment_speed_up(spectrogram,
-                                           speed_std=FLAGS.augmentation_speed_up_std,
-                                           prob=FLAGS.augmentation_speed_up_prob)
+                                           speed_std=FLAGS.augmentation_speed_up_std)
 
         # sparse warp must before freq/time masking
         if FLAGS.augmentation_sparse_warp:
@@ -58,16 +56,14 @@ def samples_to_mfccs(samples, sample_rate, train_phase=False):
                                               interpolation_order=FLAGS.augmentation_sparse_warp_interpolation_order,
                                               regularization_weight=FLAGS.augmentation_sparse_warp_regularization_weight,
                                               num_boundary_points=FLAGS.augmentation_sparse_warp_num_boundary_points,
-                                              num_control_points=FLAGS.augmentation_sparse_warp_num_control_points,
-                                              prob=FLAGS.augmentation_sparse_warp_prob)
+                                              num_control_points=FLAGS.augmentation_sparse_warp_num_control_points)
 
         if FLAGS.augmentation_freq_and_time_masking:
             spectrogram = augment_freq_time_mask(spectrogram,
                                                  frequency_masking_para=FLAGS.augmentation_freq_and_time_masking_freq_mask_range,
                                                  time_masking_para=FLAGS.augmentation_freq_and_time_masking_time_mask_range,
                                                  frequency_mask_num=FLAGS.augmentation_freq_and_time_masking_number_freq_masks,
-                                                 time_mask_num=FLAGS.augmentation_freq_and_time_masking_number_time_masks,
-                                                 prob=FLAGS.augmentation_freq_and_time_masking_prob)
+                                                 time_mask_num=FLAGS.augmentation_freq_and_time_masking_number_time_masks)
 
         if FLAGS.augmentation_spec_dropout_keeprate < 1:
             spectrogram = augment_dropout(spectrogram,
@@ -87,22 +83,12 @@ def audiofile_to_features(wav_filename, train_phase=False):
 
     if train_phase:
         if FLAGS.data_aug_features_multiplicative > 0:
-            features = tf.cond(
-                tf.math.greater(
-                    np.random.uniform(0.0, 1.0), FLAGS.data_aug_features_multiplicative_prob),
-                lambda: features,
-                lambda: features*tf.random.normal(
-                    mean=1, stddev=FLAGS.data_aug_features_multiplicative, shape=tf.shape(features))
-            )
+            features *= tf.random.normal(
+                mean=1, stddev=FLAGS.data_aug_features_multiplicative, shape=tf.shape(features))
 
         if FLAGS.data_aug_features_additive > 0:
-            features = tf.cond(
-                tf.math.greater(
-                    np.random.uniform(0.0, 1.0), FLAGS.data_aug_features_additive_prob),
-                lambda: features,
-                lambda: features + tf.random.normal(
-                    mean=0.0, stddev=FLAGS.data_aug_features_additive, shape=tf.shape(features))
-            )
+            features += tf.random.normal(
+                mean=0.0, stddev=FLAGS.data_aug_features_additive, shape=tf.shape(features))
 
     return features, features_len
 
