@@ -342,7 +342,7 @@ DS_CreateStream(ModelState* aCtx,
   ctx->model_ = aCtx;
 
   const int cutoff_top_n = 40;
-  const double cutoff_prob = 1.0;
+  const double cutoff_prob = 0.99;
 
   ctx->decoder_state_.init(aCtx->alphabet_,
                            aCtx->beam_width_,
