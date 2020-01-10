@@ -20,7 +20,7 @@ from util.config import Config, initialize_globals
 from util.evaluate_tools import calculate_report
 from util.feeding import create_dataset
 from util.flags import create_flags, FLAGS
-from util.logging import log_error, log_progress, create_progressbar
+from util.logging import log_error, log_progress, create_progressbar, log_info
 import sys
 
 
@@ -42,9 +42,11 @@ def sparse_tuple_to_texts(sp_tuple, alphabet):
     return [alphabet.decode(res) for res in results]
 
 
-def evaluate(test_csvs, create_model, try_loading):
+def evaluate(test_csvs, create_model, try_loading,
+             lm_alpha, lm_beta, report_count):
+    log_info('Evaluate with LM Parameters: alpha = {}, beta = {}'.format(lm_alpha, lm_beta))
     if FLAGS.lm_binary_path:
-        scorer = Scorer(FLAGS.lm_alpha, FLAGS.lm_beta,
+        scorer = Scorer(lm_alpha, lm_beta,
                         FLAGS.lm_binary_path, FLAGS.lm_trie_path,
                         Config.alphabet)
     else:
@@ -134,7 +136,7 @@ def evaluate(test_csvs, create_model, try_loading):
             mean_loss = np.mean(losses)
 
             # Take only the first report_count items
-            report_samples = itertools.islice(samples, FLAGS.report_count)
+            report_samples = itertools.islice(samples, report_count)
 
             print('Test on %s - WER: %f, CER: %f, loss: %f' %
                   (dataset, wer, cer, mean_loss))
@@ -164,8 +166,8 @@ def main(_):
                   'the --test_files flag.')
         sys.exit(1)
 
-    from DeepSpeech import create_model, try_loading # pylint: disable=cyclic-import
-    samples = evaluate(FLAGS.test_files.split(','), create_model, try_loading)
+    from DeepSpeech import create_model, try_loading  #pylint: disable=import-outside-toplevel
+    samples = evaluate(FLAGS.test_files.split(','), create_model, try_loading, FLAGS.lm_alpha, FLAGS.lm_beta, FLAGS.report_count)
 
     if FLAGS.test_output_file:
         # Save decoded tuples as JSON, converting NumPy floats to Python floats
