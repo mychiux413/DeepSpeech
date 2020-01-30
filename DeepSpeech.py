@@ -420,7 +420,7 @@ def try_loading(session, saver, checkpoint_filename, caption, load_step=True, lo
         sys.exit(1)
 
 
-def train():
+def train(epochs, load, sortby='wav_filesize'):
     do_cache_dataset = True
 
     # pylint: disable=too-many-boolean-expressions
@@ -438,7 +438,8 @@ def train():
                                batch_size=FLAGS.train_batch_size,
                                enable_cache=FLAGS.feature_cache and do_cache_dataset,
                                cache_path=FLAGS.feature_cache,
-                               train_phase=True)
+                               train_phase=True,
+                               sortby=sortby)
 
     iterator = tfv1.data.Iterator.from_structure(tfv1.data.get_output_types(train_set),
                                                  tfv1.data.get_output_shapes(train_set),
@@ -551,17 +552,17 @@ def train():
 
         tfv1.get_default_graph().finalize()
 
-        if not loaded and FLAGS.load in ['auto', 'last']:
+        if not loaded and load in ['auto', 'last']:
             loaded = try_loading(session, checkpoint_saver, 'checkpoint', 'most recent')
-        if not loaded and FLAGS.load in ['auto', 'best']:
+        if not loaded and load in ['auto', 'best']:
             loaded = try_loading(session, best_dev_saver, 'best_dev_checkpoint', 'best validation')
         if not loaded:
-            if FLAGS.load in ['auto', 'init']:
+            if load in ['auto', 'init']:
                 log_info('Initializing variables...')
                 session.run(initializer)
             else:
                 log_error('Unable to load %s model from specified checkpoint dir'
-                          ' - consider using load option "auto" or "init".' % FLAGS.load)
+                          ' - consider using load option "auto" or "init".' % load)
                 sys.exit(1)
 
         def run_set(set_name, epoch, init_op, dataset=None):
@@ -634,7 +635,7 @@ def train():
         best_dev_loss = float('inf')
         dev_losses = []
         try:
-            for epoch in range(FLAGS.epochs):
+            for epoch in range(epochs):
                 # Training
                 log_progress('Training epoch %d...' % epoch)
                 train_loss, _ = run_set('train', epoch, train_init_op)
@@ -942,9 +943,17 @@ def main(_):
     initialize_globals()
 
     if FLAGS.train_files:
-        tfv1.reset_default_graph()
         tfv1.set_random_seed(FLAGS.random_seed)
-        train()
+        sorts = FLAGS.train_files_sortby.split(',')
+        for i, sortby in enumerate(sorts):
+            tfv1.reset_default_graph()
+            if sortby.find(':') > -1:
+                sortby, epoch = sortby.split(':')
+                epoch = int(epoch)
+            else:
+                epoch = FLAGS.epochs
+            load = FLAGS.load if i == 0 else 'last'
+            train(epoch, load, sortby)
 
     if FLAGS.test_files:
         tfv1.reset_default_graph()
