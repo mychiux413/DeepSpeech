@@ -183,6 +183,10 @@ def create_model(batch_x, seq_length, dropout, reuse=False, batch_size=None, pre
     # Reshape output from a tensor of shape [n_steps, batch_size, n_cell_dim]
     # to a tensor of shape [n_steps*batch_size, n_cell_dim]
     output = tf.reshape(output, [-1, Config.n_cell_dim])
+    if FLAGS.layer_norm:
+        log_info("Enable Simple Layer Normalization on RNN output")
+        output = tfv1.keras.layers.LayerNormalization(epsilon=1e-7)(output)
+
     layers['rnn_output'] = output
     layers['rnn_output_state'] = output_state
 
