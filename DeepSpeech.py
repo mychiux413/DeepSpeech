@@ -953,6 +953,7 @@ def main(_):
         tfv1.set_random_seed(FLAGS.random_seed)
         sorts = FLAGS.train_files_sortby.split(',')
         for i, sortby in enumerate(sorts):
+            rnn_impl_cudnn_rnn.cell = None
             tfv1.reset_default_graph()
             if sortby.find(':') > -1:
                 sortby, epoch = sortby.split(':')
