@@ -124,9 +124,19 @@ def to_sparse_tuple(sequence):
     return indices, sequence, shape
 
 
-def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_phase=False):
+def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_phase=False, sortby='wav_filesize'):
     df = read_csvs(csvs)
-    df.sort_values(by='wav_filesize', inplace=True)
+    if sortby:
+        ascending = True
+        if sortby.startswith('-'):
+            ascending = False
+            sortby = sortby[1:]
+        assert sortby in df
+        df.sort_values(by=sortby, inplace=True, ascending=ascending)
+
+        if sortby == 'transcript':
+            df['transcript_len'] = df['transcript'].apply(len)
+            df.sort_values(by='transcript_len', inplace=True, ascending=ascending)
 
     df['transcript'] = df.apply(text_to_char_array, alphabet=Config.alphabet, result_type='reduce', axis=1)
 
@@ -173,6 +183,9 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
 
     if enable_cache:
         dataset = dataset.cache(cache_path)
+
+    if not sortby:
+        dataset = dataset.shuffle(len(df))
 
     dataset = (dataset.window(batch_size, drop_remainder=True).flat_map(batch_fn)
                       .prefetch(num_gpus))

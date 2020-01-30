@@ -23,7 +23,7 @@ Please refer to your system's documentation on how to install these dependencies
 CUDA dependency
 ^^^^^^^^^^^^^^^
 
-The GPU capable builds (Python, NodeJS, C++, etc) depend on the same CUDA runtime as upstream TensorFlow. Currently with TensorFlow 1.14 it depends on CUDA 10.0 and CuDNN v7.5. `See the TensorFlow documentation <https://www.tensorflow.org/install/gpu>`_.
+The GPU capable builds (Python, NodeJS, C++, etc) depend on the same CUDA runtime as upstream TensorFlow. Currently with TensorFlow 1.15 it depends on CUDA 10.0 and CuDNN v7.5. `See the TensorFlow documentation <https://www.tensorflow.org/install/gpu>`_.
 
 Getting the pre-trained model
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -32,8 +32,8 @@ If you want to use the pre-trained English model for performing speech-to-text, 
 
 .. code-block:: bash
 
-   wget https://github.com/mozilla/DeepSpeech/releases/download/v0.6.0/deepspeech-0.6.0-models.tar.gz
-   tar xvfz deepspeech-0.6.0-models.tar.gz
+   wget https://github.com/mozilla/DeepSpeech/releases/download/v0.6.1/deepspeech-0.6.1-models.tar.gz
+   tar xvfz deepspeech-0.6.1-models.tar.gz
 
 Model compatibility
 ^^^^^^^^^^^^^^^^^^^

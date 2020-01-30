@@ -11,13 +11,13 @@ build:
     - "notify.irc-channel.${notifications.irc}.on-failed"
   system_setup:
     >
-      ${nodejs.packages_trusty.prep_6} && ${nodejs.packages_trusty.apt_pinning}
+      ${nodejs.packages_trusty.prep_12} && ${nodejs.packages_trusty.apt_pinning}
       && apt-get -qq update && apt-get -qq -y install nodejs python-yaml &&
       apt-get -qq -y install ${python.packages_trusty.apt} && ${swig.packages.install_script}
   system_config:
     >
       ${swig.patch_nodejs.linux}
-  tensorflow: "https://community-tc.services.mozilla.com/api/index/v1/task/project.deepspeech.tensorflow.pip.r1.14.e77504ac6b941fd2af495b49a0bcd56f25ca0e1e.cpu/artifacts/public/home.tar.xz"
+  tensorflow: "https://community-tc.services.mozilla.com/api/index/v1/task/project.deepspeech.tensorflow.pip.r1.15.ceb46aae5836a0f648a2c3da5942af2b7d1b98bf.cpu/artifacts/public/home.tar.xz"
   scripts:
     build: "taskcluster/node-build.sh"
     package: "taskcluster/node-package.sh"
