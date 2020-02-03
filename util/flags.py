@@ -81,10 +81,12 @@ def create_flags():
     f.DEFINE_float('learning_rate', 0.001, 'learning rate of Adam optimizer')
 
     # Acoustic Length Normalization
-    f.DEFINE_float("logits_len_norm_alpha", 0.0, "logits alpha", lower_bound=0.0, upper_bound=1.0)
-    f.DEFINE_float("logits_len_norm_beta", 0.0, "logits beta", lower_bound=0.0)
-    f.DEFINE_float("transcript_len_norm_alpha", 0.0, "transcript alpha", lower_bound=0.0, upper_bound=1.0)
-    f.DEFINE_float("transcript_len_norm_beta", 0.0, "transcript beta", lower_bound=0.0)
+    f.DEFINE_float("len_norm_logits_alpha", 0.0, "logits alpha", lower_bound=0.0, upper_bound=1.0)
+    f.DEFINE_float("len_norm_logits_beta", 0.0, "logits beta", lower_bound=0.0)
+    f.DEFINE_float("len_norm_transcript_alpha", 0.0, "transcript alpha", lower_bound=0.0, upper_bound=1.0)
+    f.DEFINE_float("len_norm_transcript_beta", 0.0, "transcript beta", lower_bound=0.0)
+    f.DEFINE_float("len_norm_avg_logits_length", 0.0, "for modifying loss, 0.0 means ignore", lower_bound=0.0)
+    f.DEFINE_float("len_norm_avg_transcript_length", 0.0, "for modifying loss, 0.0 means ignore", lower_bound=0.0)
 
     # Batch sizes
 

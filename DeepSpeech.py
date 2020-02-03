@@ -28,6 +28,7 @@ from util.feeding import create_dataset, samples_to_mfccs, audiofile_to_features
 from util.flags import create_flags, FLAGS
 from util.logging import log_info, log_error, log_debug, log_progress, create_progressbar
 from util.finetune_lm_params import finetune_lm
+from util.length_norm import to_norm_lengths
 
 # Graph Creation
 # ==============
@@ -238,18 +239,27 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     # total_loss = tf.Print(total_loss, data=[batch_seq_len], message="batch_seq_len", first_n=1000)
     # total_loss = tf.Print(total_loss, data=[batch_y_len], message="batch_y_len", first_n=1000)
     # total_loss = tf.Print(total_loss, data=[total_loss], message="total_loss", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[tf.shape(logits)], message="logits shape", first_n=1000)
 
-    if FLAGS.logits_len_norm_alpha > 0.0:
+    if FLAGS.len_norm_logits_alpha > 0.0:
         log_info("Enable Logits Length Normalization")
-        logits_length = tf.pow((FLAGS.logits_len_norm_beta + tf.cast(tf.shape(logits)[-1], dtype=tf.float32)) / (FLAGS.logits_len_norm_beta + 1.0), FLAGS.logits_len_norm_alpha)
-        # total_loss = tf.Print(total_loss, data=[logits_length], message="logits_length", first_n=1000)
-        total_loss /= logits_length
+        logits_norm_lengths = to_norm_lengths(tf.shape(logits)[0], FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta)
+        # total_loss = tf.Print(total_loss, data=[logits_norm_lengths], message="logits_norm_lengths", first_n=1000)
+        total_loss /= logits_norm_lengths
 
-    if FLAGS.transcript_len_norm_alpha > 0.0:
+        if FLAGS.len_norm_avg_logits_length:
+            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_logits_length, FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta, False)
+            total_loss *= avg_norm_lengths
+
+    if FLAGS.len_norm_transcript_alpha > 0.0:
         log_info("Enable Transcript Length Normalization")
-        transcripts_length = tf.pow((FLAGS.transcript_len_norm_beta + tf.cast(batch_y_len, dtype=tf.float32)) / (FLAGS.transcript_len_norm_beta + 1.0), FLAGS.transcript_len_norm_alpha)
-        # total_loss = tf.Print(total_loss, data=[transcripts_length], message="transcripts_length", first_n=1000)
-        total_loss /= transcripts_length
+        transcripts_norm_lengths = to_norm_lengths(batch_y_len, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta)
+        # total_loss = tf.Print(total_loss, data=[transcripts_norm_lengths], message="transcripts_norm_lengths", first_n=1000)
+        total_loss /= transcripts_norm_lengths
+
+        if FLAGS.len_norm_avg_transcript_length:
+            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_transcript_length, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta, False)
+            total_loss *= avg_norm_lengths
 
     # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(logits)[0], [total_loss, logits])
     # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(batch_y_len)[0], [total_loss, batch_y_len])
