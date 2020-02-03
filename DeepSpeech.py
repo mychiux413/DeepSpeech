@@ -219,7 +219,7 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     the decoded result and the batch's original Y.
     '''
     # Obtain the next batch of data
-    batch_filenames, (batch_x, batch_seq_len), batch_y = iterator.get_next()
+    batch_filenames, (batch_x, batch_seq_len), batch_y, batch_y_len = iterator.get_next()
 
     if FLAGS.use_cudnn_rnn:
         rnn_impl = rnn_impl_cudnn_rnn
@@ -232,7 +232,27 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     # Compute the CTC loss using TensorFlow's `ctc_loss`
     total_loss = tfv1.nn.ctc_loss(labels=batch_y, inputs=logits, sequence_length=batch_seq_len,
                                   ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
+    # total_loss = tf.Print(total_loss, data=[batch_y.dense_shape], message="dense_shape", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[batch_y.values], message="values", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[batch_y.indices], message="indices", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[batch_seq_len], message="batch_seq_len", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[batch_y_len], message="batch_y_len", first_n=1000)
+    # total_loss = tf.Print(total_loss, data=[total_loss], message="total_loss", first_n=1000)
 
+    if FLAGS.logits_len_norm_alpha > 0.0:
+        log_info("Enable Logits Length Normalization")
+        logits_length = tf.pow((FLAGS.logits_len_norm_beta + tf.cast(tf.shape(logits)[-1], dtype=tf.float32)) / (FLAGS.logits_len_norm_beta + 1.0), FLAGS.logits_len_norm_alpha)
+        # total_loss = tf.Print(total_loss, data=[logits_length], message="logits_length", first_n=1000)
+        total_loss /= logits_length
+
+    if FLAGS.transcript_len_norm_alpha > 0.0:
+        log_info("Enable Transcript Length Normalization")
+        transcripts_length = tf.pow((FLAGS.transcript_len_norm_beta + tf.cast(batch_y_len, dtype=tf.float32)) / (FLAGS.transcript_len_norm_beta + 1.0), FLAGS.transcript_len_norm_alpha)
+        # total_loss = tf.Print(total_loss, data=[transcripts_length], message="transcripts_length", first_n=1000)
+        total_loss /= transcripts_length
+
+    # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(logits)[0], [total_loss, logits])
+    # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(batch_y_len)[0], [total_loss, batch_y_len])
     # >> for debugging
     # total_loss = tf.concat((total_loss, [np.inf]), axis=0)
     # batch_filenames = tf.concat((batch_filenames, ['_']), axis=0)

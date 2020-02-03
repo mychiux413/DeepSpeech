@@ -59,7 +59,7 @@ def evaluate(test_csvs, create_model, try_loading,
                                                  output_classes=tfv1.data.get_output_classes(test_sets[0]))
     test_init_ops = [iterator.make_initializer(test_set) for test_set in test_sets]
 
-    batch_wav_filename, (batch_x, batch_x_len), batch_y = iterator.get_next()
+    batch_wav_filename, (batch_x, batch_x_len), batch_y, batch_y_len = iterator.get_next()
 
     # One rate per layer
     no_dropout = [None] * 6
@@ -73,7 +73,16 @@ def evaluate(test_csvs, create_model, try_loading,
 
     loss = tfv1.nn.ctc_loss(labels=batch_y,
                             inputs=logits,
-                            sequence_length=batch_x_len)
+                            sequence_length=batch_x_len,
+                            ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
+
+    if FLAGS.logits_len_norm_alpha > 0.0:
+        logits_length = tf.pow((FLAGS.logits_len_norm_beta + tf.cast(tf.shape(logits)[-1], dtype=tf.float32)) / (FLAGS.logits_len_norm_beta + 1.0), FLAGS.logits_len_norm_alpha)
+        loss /= logits_length
+
+    if FLAGS.transcript_len_norm_alpha > 0.0:
+        transcripts_length = tf.pow((FLAGS.transcript_len_norm_beta + tf.cast(batch_y_len, dtype=tf.float32)) / (FLAGS.transcript_len_norm_beta + 1.0), FLAGS.transcript_len_norm_alpha)
+        loss /= transcripts_length
 
     tfv1.train.get_or_create_global_step()
 
