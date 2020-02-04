@@ -111,7 +111,7 @@ def evaluate(test_csvs, create_model, try_loading,
         loaded = False
         if not loaded and FLAGS.load in ['auto', 'best']:
             loaded = try_loading(session, saver, 'best_dev_checkpoint', 'best validation')
-        if not loaded and FLAGS.load in ['auto', 'last']:
+        if not loaded and FLAGS.load in ['auto', 'last', 'init']:
             loaded = try_loading(session, saver, 'checkpoint', 'most recent')
         if not loaded:
             print('Could not load checkpoint from {}'.format(FLAGS.checkpoint_dir))
