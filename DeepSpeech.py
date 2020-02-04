@@ -990,8 +990,7 @@ def main(_):
 
         exp_results = tune(cust_train, test)
         if FLAGS.len_norm_exp_results_path:
-            with open(FLAGS.len_norm_exp_results_path, 'w') as f:
-                f.write(json.dumps(exp_results, indent=4))
+            json.dump(exp_results, open(FLAGS.len_norm_exp_results_path, 'w'), default=float, indent=4)
     else:
 
         if FLAGS.train_files:

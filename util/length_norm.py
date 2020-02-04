@@ -7,6 +7,8 @@ import os
 import shutil
 from util.logging import log_info
 from util.flags import FLAGS
+import json
+
 
 def to_norm_lengths(lengths, alpha, beta, dynamic=True):
     if dynamic:
@@ -103,14 +105,16 @@ def tune(train, test):
             best_logits_beta = logits_beta
             best_transcript_alpha = transcript_alpha
             best_transcript_beta = transcript_beta
+            if FLAGS.test_output_file:
+                json.dump(samples, open(FLAGS.test_output_file, 'w'), default=float, indent=4)
 
         results['raw_data'].append({
-            'logits_alpha': float(logits_alpha),
-            'logits_beta': float(logits_beta),
-            'transcript_alpha': float(transcript_alpha),
-            'transcript_beta': float(transcript_beta),
-            'batch_target_loss': float(batch_target_loss),
-            'mean_loss': float(mean_loss),
+            'logits_alpha': logits_alpha,
+            'logits_beta': logits_beta,
+            'transcript_alpha': transcript_alpha,
+            'transcript_beta': transcript_beta,
+            'batch_target_loss': batch_target_loss,
+            'mean_loss': mean_loss,
         })
 
         if FLAGS.load != "init":
