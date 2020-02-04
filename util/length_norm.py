@@ -39,6 +39,7 @@ def tune(train, test):
             'len_norm_exp_transcript_alpha_radius': FLAGS.len_norm_exp_transcript_alpha_radius,
             'len_norm_exp_transcript_beta_radius': FLAGS.len_norm_exp_transcript_beta_radius,
             'len_norm_exp_iterations': FLAGS.len_norm_exp_iterations,
+            'len_norm_exp_target_mean_loss': FLAGS.len_norm_exp_target_mean_loss,
         }
     }
 
@@ -51,7 +52,7 @@ def tune(train, test):
     transcript_beta = best_transcript_beta = FLAGS.len_norm_transcript_beta
 
     # random search
-    best_batch_wer = 1.0
+    best_target_mean_loss = 9e32
     for i in range(FLAGS.len_norm_exp_iterations):
         if i > 0:
             coords = np.random.normal(size=4)
@@ -92,14 +93,12 @@ def tune(train, test):
 
         tfv1.reset_default_graph()
         samples = test()
-        word_distances = [sample['word_distance'] for sample in samples]
-        word_lengths = [sample['word_length'] for sample in samples]
-        batch_wer = np.sum(word_distances) / np.sum(word_lengths)
+        batch_target_loss = np.mean([sample[FLAGS.len_norm_exp_target_mean_loss] for sample in samples])
         mean_loss = np.mean([sample['loss'] for sample in samples])
 
-        if batch_wer < best_batch_wer:
-            log_info("found better wer: {} < {}".format(batch_wer, best_batch_wer))
-            best_batch_wer = batch_wer
+        if batch_target_loss < best_target_mean_loss:
+            log_info("found better target loss: {} < {}".format(batch_target_loss, best_target_mean_loss))
+            best_target_mean_loss = batch_target_loss
             best_logits_alpha = logits_alpha
             best_logits_beta = logits_beta
             best_transcript_alpha = transcript_alpha
@@ -110,7 +109,7 @@ def tune(train, test):
             'logits_beta': float(logits_beta),
             'transcript_alpha': float(transcript_alpha),
             'transcript_beta': float(transcript_beta),
-            'batch_wer': float(batch_wer),
+            'batch_target_loss': float(batch_target_loss),
             'mean_loss': float(mean_loss),
         })
 
@@ -128,7 +127,7 @@ def tune(train, test):
         'Logits Beta': best_logits_beta,
         'Transcript Alpha': best_transcript_alpha,
         'Transcript Beta': best_transcript_beta,
-        'WER': best_batch_wer,
+        'Target Mean Loss': best_target_mean_loss,
         'Use Batch Sequence': FLAGS.len_norm_use_batch_sequence,
     }
 
