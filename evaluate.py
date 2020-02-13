@@ -22,7 +22,7 @@ from util.evaluate_tools import calculate_report
 from util.feeding import create_dataset
 from util.flags import create_flags, FLAGS
 from util.logging import log_error, log_progress, create_progressbar, log_info
-from util.length_norm import to_norm_lengths
+from util.length_norm import cal_norm_length
 import sys
 
 
@@ -77,23 +77,9 @@ def evaluate(test_csvs, create_model, try_loading,
                             sequence_length=batch_x_len,
                             ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
 
-    if FLAGS.len_norm_logits_alpha > 0.0:
-        log_info("Enable Logits Length Normalization")
-        logits_norm_lengths = to_norm_lengths(tf.shape(logits)[0], FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta)
-        loss /= logits_norm_lengths
-
-        if FLAGS.len_norm_avg_logits_length:
-            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_logits_length, FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta, False)
-            loss *= avg_norm_lengths
-
-    if FLAGS.len_norm_transcript_alpha > 0.0:
-        log_info("Enable Transcript Length Normalization")
-        transcripts_norm_lengths = to_norm_lengths(batch_y_len, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta)
-        loss /= transcripts_norm_lengths
-
-        if FLAGS.len_norm_avg_transcript_length:
-            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_transcript_length, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta, False)
-            loss *= avg_norm_lengths
+    if FLAGS.len_norm_alpha:
+        transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
+        loss *= FLAGS.len_norm_scale / transcript_norm_lengths
 
     tfv1.train.get_or_create_global_step()
 

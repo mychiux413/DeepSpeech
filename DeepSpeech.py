@@ -28,7 +28,7 @@ from util.feeding import create_dataset, samples_to_mfccs, audiofile_to_features
 from util.flags import create_flags, FLAGS
 from util.logging import log_info, log_error, log_debug, log_progress, create_progressbar
 from util.finetune_lm_params import finetune_lm
-from util.length_norm import tune, to_norm_lengths
+from util.length_norm import cal_norm_length
 
 # Graph Creation
 # ==============
@@ -233,43 +233,11 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     # Compute the CTC loss using TensorFlow's `ctc_loss`
     total_loss = tfv1.nn.ctc_loss(labels=batch_y, inputs=logits, sequence_length=batch_seq_len,
                                   ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
-    # total_loss = tf.Print(total_loss, data=[batch_y.dense_shape], message="dense_shape", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[batch_y.values], message="values", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[batch_y.indices], message="indices", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[batch_seq_len], message="batch_seq_len", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[batch_y_len], message="batch_y_len", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[total_loss], message="total_loss", first_n=1000)
-    # total_loss = tf.Print(total_loss, data=[tf.shape(logits)], message="logits shape", first_n=1000)
 
-    if FLAGS.len_norm_logits_alpha > 0.0:
-        log_info("Enable Logits Length Normalization")
-        if FLAGS.len_norm_use_batch_sequence:
-            log_info("Use Batch Sequence Length")
-            logits_norm_lengths = to_norm_lengths(batch_seq_len, FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta)
-        else:
-            logits_norm_lengths = to_norm_lengths(tf.shape(logits)[0], FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta)
-        # total_loss = tf.Print(total_loss, data=[logits_norm_lengths], message="logits_norm_lengths", first_n=1000)
-        total_loss /= logits_norm_lengths
-
-        if FLAGS.len_norm_avg_logits_length:
-            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_logits_length, FLAGS.len_norm_logits_alpha, FLAGS.len_norm_logits_beta, False)
-            total_loss *= avg_norm_lengths
-
-    if FLAGS.len_norm_transcript_alpha > 0.0:
+    if FLAGS.len_norm_alpha:
         log_info("Enable Transcript Length Normalization")
-        transcripts_norm_lengths = to_norm_lengths(batch_y_len, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta)
-        # total_loss = tf.Print(total_loss, data=[transcripts_norm_lengths], message="transcripts_norm_lengths", first_n=1000)
-        total_loss /= transcripts_norm_lengths
-
-        if FLAGS.len_norm_avg_transcript_length:
-            avg_norm_lengths = to_norm_lengths(FLAGS.len_norm_avg_transcript_length, FLAGS.len_norm_transcript_alpha, FLAGS.len_norm_transcript_beta, False)
-            total_loss *= avg_norm_lengths
-
-    # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(logits)[0], [total_loss, logits])
-    # tf.assert_equal(tf.shape(total_loss)[0], tf.shape(batch_y_len)[0], [total_loss, batch_y_len])
-    # >> for debugging
-    # total_loss = tf.concat((total_loss, [np.inf]), axis=0)
-    # batch_filenames = tf.concat((batch_filenames, ['_']), axis=0)
+        transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
+        total_loss *= FLAGS.len_norm_scale / transcript_norm_lengths
 
     is_finite_loss = tf.math.is_finite(total_loss)
     # Check if any files lead to non finite loss
@@ -983,34 +951,24 @@ def do_single_file_inference(input_file_path):
 def main(_):
     initialize_globals()
 
-    if FLAGS.len_norm_exp_iterations:
-        def cust_train(epochs, load, sortby='wav_filesize'):
+    if FLAGS.train_files:
+        tfv1.set_random_seed(FLAGS.random_seed)
+        sorts = FLAGS.train_files_sortby.split(',')
+        for i, sortby in enumerate(sorts):
             rnn_impl_cudnn_rnn.cell = None
-            train(epochs, load, sortby)
-
-        exp_results = tune(cust_train, test)
-        if FLAGS.len_norm_exp_results_path:
-            json.dump(exp_results, open(FLAGS.len_norm_exp_results_path, 'w'), default=float, indent=4)
-    else:
-
-        if FLAGS.train_files:
-            tfv1.set_random_seed(FLAGS.random_seed)
-            sorts = FLAGS.train_files_sortby.split(',')
-            for i, sortby in enumerate(sorts):
-                rnn_impl_cudnn_rnn.cell = None
-                tfv1.reset_default_graph()
-                if sortby.find(':') > -1:
-                    sortby, epoch = sortby.split(':')
-                    epoch = int(epoch)
-                else:
-                    epoch = FLAGS.epochs
-                load = FLAGS.load if i == 0 else 'last'
-                train(epoch, load, sortby)
-
-        original_samples = []
-        if FLAGS.test_files:
             tfv1.reset_default_graph()
-            original_samples = test()
+            if sortby.find(':') > -1:
+                sortby, epoch = sortby.split(':')
+                epoch = int(epoch)
+            else:
+                epoch = FLAGS.epochs
+            load = FLAGS.load if i == 0 else 'last'
+            train(epoch, load, sortby)
+
+    original_samples = []
+    if FLAGS.test_files:
+        tfv1.reset_default_graph()
+        original_samples = test()
 
     if FLAGS.export_dir and not FLAGS.export_zip:
         tfv1.reset_default_graph()

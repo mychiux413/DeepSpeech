@@ -81,22 +81,9 @@ def create_flags():
     f.DEFINE_float('learning_rate', 0.001, 'learning rate of Adam optimizer')
 
     # Acoustic Length Normalization
-    f.DEFINE_float("len_norm_logits_alpha", 0.0, "logits alpha", lower_bound=0.0, upper_bound=1.0)
-    f.DEFINE_float("len_norm_logits_beta", 0.0, "logits beta", lower_bound=0.0)
-    f.DEFINE_boolean("len_norm_use_batch_sequence", False, "use batch sequence instead of logits size")
-    f.DEFINE_float("len_norm_transcript_alpha", 0.0, "transcript alpha", lower_bound=0.0, upper_bound=1.0)
-    f.DEFINE_float("len_norm_transcript_beta", 0.0, "transcript beta", lower_bound=0.0)
-    f.DEFINE_float("len_norm_avg_logits_length", 0.0, "for modifying loss, 0.0 means ignore", lower_bound=0.0)
-    f.DEFINE_float("len_norm_avg_transcript_length", 0.0, "for modifying loss, 0.0 means ignore", lower_bound=0.0)
-
-    # Acoustic Length Normalization Experiment
-    f.DEFINE_integer('len_norm_exp_iterations', 0, "enable length normalization experiment")
-    f.DEFINE_float("len_norm_exp_logits_alpha_radius", 0.0, "logits alpha radius", lower_bound=0.0)
-    f.DEFINE_float("len_norm_exp_logits_beta_radius", 0.0, "logits beta radius", lower_bound=0.0)
-    f.DEFINE_float("len_norm_exp_transcript_alpha_radius", 0.0, "transcript alpha radius", lower_bound=0.0)
-    f.DEFINE_float("len_norm_exp_transcript_beta_radius", 0.0, "transcript beta radius", lower_bound=0.0)
-    f.DEFINE_string("len_norm_exp_target_mean_loss", "word_distance", "target loss")
-    f.DEFINE_string("len_norm_exp_results_path", '', "exp results path")
+    f.DEFINE_float("len_norm_alpha", 0.0, "the alpha of loss normalization for characters length", lower_bound=0.0, upper_bound=1.0)
+    f.DEFINE_float("len_norm_beta", 0.0, "the beta of loss normalization for characters length", lower_bound=0.0)
+    f.DEFINE_float("len_norm_scale", 1.0, "multiply the constant to loss", lower_bound=1e-10)
 
     # Batch sizes
 
