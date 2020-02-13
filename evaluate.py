@@ -79,7 +79,8 @@ def evaluate(test_csvs, create_model, try_loading,
 
     if FLAGS.len_norm_alpha:
         transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
-        loss *= FLAGS.len_norm_scale / transcript_norm_lengths
+        scale_norm_length = cal_norm_length(FLAGS.len_norm_scale, FLAGS.len_norm_alpha, FLAGS.len_norm_beta, dynamic=False)
+        loss *= scale_norm_length / transcript_norm_lengths
 
     tfv1.train.get_or_create_global_step()
 

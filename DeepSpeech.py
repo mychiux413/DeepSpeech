@@ -237,7 +237,8 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     if FLAGS.len_norm_alpha:
         log_info("Enable Transcript Length Normalization")
         transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
-        total_loss *= FLAGS.len_norm_scale / transcript_norm_lengths
+        scale_norm_length = cal_norm_length(FLAGS.len_norm_scale, FLAGS.len_norm_alpha, FLAGS.len_norm_beta, dynamic=False)
+        total_loss *= scale_norm_length / transcript_norm_lengths
 
     is_finite_loss = tf.math.is_finite(total_loss)
     # Check if any files lead to non finite loss
