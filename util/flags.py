@@ -79,6 +79,11 @@ def create_flags():
     f.DEFINE_float('epsilon', 1e-8, 'epsilon parameter of Adam optimizer')
     f.DEFINE_float('learning_rate', 0.001, 'learning rate of Adam optimizer')
 
+    # Acoustic Length Normalization
+    f.DEFINE_float("len_norm_alpha", 0.0, "the alpha of loss normalization for characters length", lower_bound=0.0, upper_bound=1.0)
+    f.DEFINE_float("len_norm_beta", 0.0, "the beta of loss normalization for characters length", lower_bound=0.0)
+    f.DEFINE_float("len_norm_scale", 1.0, "multiply the constant to loss", lower_bound=1e-10)
+
     # Batch sizes
 
     f.DEFINE_integer('train_batch_size', 1, 'number of elements in a training batch')

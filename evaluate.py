@@ -22,6 +22,7 @@ from util.evaluate_tools import calculate_report
 from util.feeding import create_dataset
 from util.flags import create_flags, FLAGS
 from util.logging import log_error, log_progress, create_progressbar, log_info
+from util.length_norm import cal_norm_length
 import sys
 
 
@@ -59,7 +60,7 @@ def evaluate(test_csvs, create_model, try_loading,
                                                  output_classes=tfv1.data.get_output_classes(test_sets[0]))
     test_init_ops = [iterator.make_initializer(test_set) for test_set in test_sets]
 
-    batch_wav_filename, (batch_x, batch_x_len), batch_y = iterator.get_next()
+    batch_wav_filename, (batch_x, batch_x_len), batch_y, batch_y_len = iterator.get_next()
 
     # One rate per layer
     no_dropout = [None] * 6
@@ -73,7 +74,12 @@ def evaluate(test_csvs, create_model, try_loading,
 
     loss = tfv1.nn.ctc_loss(labels=batch_y,
                             inputs=logits,
-                            sequence_length=batch_x_len)
+                            sequence_length=batch_x_len,
+                            ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
+
+    if FLAGS.len_norm_alpha:
+        transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
+        loss *= FLAGS.len_norm_scale / transcript_norm_lengths
 
     tfv1.train.get_or_create_global_step()
 
@@ -91,7 +97,7 @@ def evaluate(test_csvs, create_model, try_loading,
         loaded = False
         if not loaded and FLAGS.load in ['auto', 'best']:
             loaded = try_loading(session, saver, 'best_dev_checkpoint', 'best validation')
-        if not loaded and FLAGS.load in ['auto', 'last']:
+        if not loaded and FLAGS.load in ['auto', 'last', 'init']:
             loaded = try_loading(session, saver, 'checkpoint', 'most recent')
         if not loaded:
             print('Could not load checkpoint from {}'.format(FLAGS.checkpoint_dir))

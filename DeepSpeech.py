@@ -28,6 +28,7 @@ from util.feeding import create_dataset, samples_to_mfccs, audiofile_to_features
 from util.flags import create_flags, FLAGS
 from util.logging import log_info, log_error, log_debug, log_progress, create_progressbar
 from util.finetune_lm_params import finetune_lm
+from util.length_norm import cal_norm_length
 
 # Graph Creation
 # ==============
@@ -219,7 +220,7 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     the decoded result and the batch's original Y.
     '''
     # Obtain the next batch of data
-    batch_filenames, (batch_x, batch_seq_len), batch_y = iterator.get_next()
+    batch_filenames, (batch_x, batch_seq_len), batch_y, batch_y_len = iterator.get_next()
 
     if FLAGS.use_cudnn_rnn:
         rnn_impl = rnn_impl_cudnn_rnn
@@ -233,9 +234,10 @@ def calculate_mean_edit_distance_and_loss(iterator, dropout, reuse):
     total_loss = tfv1.nn.ctc_loss(labels=batch_y, inputs=logits, sequence_length=batch_seq_len,
                                   ignore_longer_outputs_than_inputs=FLAGS.ctc_loss_ignore_longer_outputs_than_inputs)
 
-    # >> for debugging
-    # total_loss = tf.concat((total_loss, [np.inf]), axis=0)
-    # batch_filenames = tf.concat((batch_filenames, ['_']), axis=0)
+    if FLAGS.len_norm_alpha:
+        log_info("Enable Transcript Length Normalization")
+        transcript_norm_lengths = cal_norm_length(batch_y_len, FLAGS.len_norm_alpha, FLAGS.len_norm_beta)
+        total_loss *= FLAGS.len_norm_scale / transcript_norm_lengths
 
     is_finite_loss = tf.math.is_finite(total_loss)
     # Check if any files lead to non finite loss
