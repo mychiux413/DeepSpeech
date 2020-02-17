@@ -138,6 +138,8 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
         if sortby == 'transcript':
             df['transcript_len'] = df['transcript'].apply(len)
             df.sort_values(by='transcript_len', inplace=True, ascending=ascending)
+    else:
+        df = df.sample(frac=1.0)
 
     df['transcript'] = df.apply(text_to_char_array, alphabet=Config.alphabet, result_type='reduce', axis=1)
 
@@ -184,7 +186,8 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
                                              output_types=(tf.string, (tf.int64, tf.int32, tf.int64), tf.int32))
 
     if not sortby:
-        dataset = dataset.shuffle(len(df))
+        # limit buffer size to protect memory cost
+        dataset = dataset.shuffle(min(len(df), 102400))
 
     dataset = dataset.map(process_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
