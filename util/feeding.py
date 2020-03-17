@@ -180,7 +180,7 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
     dataset = tf.data.Dataset.from_generator(generate_values,
                                              output_types=(tf.string, (tf.int64, tf.int32, tf.int64)))
     if not sortby:
-        dataset = dataset.shuffle(len(df))
+        dataset = dataset.shuffle(min(len(df), 102400))
 
     dataset = dataset.map(process_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
