@@ -177,15 +177,15 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
         noise_iterator = None
     process_fn = partial(entry_to_features, train_phase=train_phase, noise_iterator=noise_iterator)
 
-    dataset = (tf.data.Dataset.from_generator(generate_values,
-                                              output_types=(tf.string, (tf.int64, tf.int32, tf.int64)))
-                              .map(process_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE))
+    dataset = tf.data.Dataset.from_generator(generate_values,
+                                             output_types=(tf.string, (tf.int64, tf.int32, tf.int64)))
+    if not sortby:
+        dataset = dataset.shuffle(len(df))
+
+    dataset = dataset.map(process_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     if enable_cache:
         dataset = dataset.cache(cache_path)
-
-    if not sortby:
-        dataset = dataset.shuffle(len(df))
 
     dataset = (dataset.window(batch_size, drop_remainder=True).flat_map(batch_fn)
                       .prefetch(num_gpus))
