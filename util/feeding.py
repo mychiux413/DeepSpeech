@@ -16,7 +16,7 @@ from util.text import text_to_char_array
 from util.flags import FLAGS
 from util.spectrogram_augmentations import augment_freq_time_mask, augment_dropout, augment_pitch_and_tempo, augment_speed_up, augment_sparse_warp
 from util.audio import read_frames_from_file, vad_split, DEFAULT_FORMAT
-from util.audio_augmentation import augment_noise, noise_file_to_audio, collect_noise_filenames
+from util.audio_augmentation import augment_noise, create_noise_iterator, gla
 
 
 def read_csvs(csv_files):
@@ -74,7 +74,15 @@ def samples_to_mfccs(samples, sample_rate, train_phase=False):
         spectrogram, sample_rate, dct_coefficient_count=Config.n_input)
     mfccs = tf.reshape(mfccs, [-1, Config.n_input])
 
-    return mfccs, tf.shape(input=mfccs)[0]
+    review_audio = samples
+    if FLAGS.augmentation_review_audio_steps and train_phase and any([
+                FLAGS.augmentation_spec_dropout_keeprate < 1,
+                FLAGS.augmentation_freq_and_time_masking,
+                FLAGS.augmentation_pitch_and_tempo_scaling,
+                FLAGS.augmentation_speed_up_std > 0]):
+        review_audio = gla(spectrogram)
+
+    return mfccs, tf.shape(input=mfccs)[0], review_audio
 
 
 def audiofile_to_features(wav_filename, train_phase=False, noise_iterator=None):
@@ -83,18 +91,21 @@ def audiofile_to_features(wav_filename, train_phase=False, noise_iterator=None):
     audio = decoded.audio
 
     # augment audio
-    if train_phase and noise_iterator:
+    if noise_iterator:
+        noise = noise_iterator.get_next()
         audio = augment_noise(
             audio,
-            noise_iterator.get_next(),
-            change_audio_db_max=FLAGS.audio_aug_mix_noise_max_audio_db,
-            change_audio_db_min=FLAGS.audio_aug_mix_noise_min_audio_db,
-            change_noise_db_max=FLAGS.audio_aug_mix_noise_max_noise_db,
-            change_noise_db_min=FLAGS.audio_aug_mix_noise_min_noise_db,
+            noise,
+            min_audio_dbfs=FLAGS.audio_aug_mix_noise_min_audio_dbfs,
+            max_audio_dbfs=FLAGS.audio_aug_mix_noise_max_audio_dbfs,
+            min_snr_db=FLAGS.audio_aug_mix_noise_min_snr_db,
+            max_snr_db=FLAGS.audio_aug_mix_noise_max_snr_db,
+            limit_audio_peak_dbfs=FLAGS.audio_aug_mix_noise_limit_audio_peak_dbfs,
+            limit_noise_peak_dbfs=FLAGS.audio_aug_mix_noise_limit_noise_peak_dbfs,
+            sample_rate=FLAGS.audio_sample_rate,
         )
 
-
-    features, features_len = samples_to_mfccs(audio, decoded.sample_rate, train_phase=train_phase)
+    features, features_len, review_audio = samples_to_mfccs(audio, decoded.sample_rate, train_phase=train_phase)
 
     # augment features
     if train_phase:
@@ -106,13 +117,13 @@ def audiofile_to_features(wav_filename, train_phase=False, noise_iterator=None):
             features += tf.random.normal(
                 mean=0.0, stddev=FLAGS.data_aug_features_additive, shape=tf.shape(features))
 
-    return features, features_len
+    return features, features_len, review_audio
 
 
-def entry_to_features(wav_filename, transcript, train_phase, noise_iterator=None):
+def entry_to_features(wav_filename, transcript, train_phase, noise_iterator):
     # https://bugs.python.org/issue32117
-    features, features_len = audiofile_to_features(wav_filename, train_phase=train_phase, noise_iterator=noise_iterator)
-    return wav_filename, features, features_len, tf.SparseTensor(*transcript)
+    features, features_len, review_audio = audiofile_to_features(wav_filename, train_phase=train_phase, noise_iterator=noise_iterator)
+    return wav_filename, features, features_len, tf.SparseTensor(*transcript), review_audio
 
 
 def to_sparse_tuple(sequence):
@@ -124,7 +135,7 @@ def to_sparse_tuple(sequence):
     return indices, sequence, shape
 
 
-def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_phase=False, sortby='wav_filesize'):
+def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_phase=False, sortby='wav_filesize', noise_dirs_or_files=None):
     df = read_csvs(csvs)
     if sortby:
         ascending = True
@@ -151,30 +162,29 @@ def create_dataset(csvs, batch_size, enable_cache=False, cache_path=None, train_
         shape = sparse.dense_shape
         return tf.sparse.reshape(sparse, [shape[0], shape[2]])
 
-    def batch_fn(wav_filenames, features, features_len, transcripts):
+    def batch_fn(wav_filenames, features, features_len, transcripts, review_audios):
         features = tf.data.Dataset.zip((features, features_len))
         features = features.padded_batch(batch_size,
                                          padded_shapes=([None, Config.n_input], []))
         transcripts = transcripts.batch(batch_size).map(sparse_reshape)
         wav_filenames = wav_filenames.batch(batch_size)
-        return tf.data.Dataset.zip((wav_filenames, features, transcripts))
+
+        # In order not to waste too much prefetch performance, randomly extract only `one` audio for each step
+        if FLAGS.augmentation_review_audio_steps and batch_size > 1:
+            skip_size = tf.random.uniform(shape=[], minval=0, maxval=batch_size - 1, dtype=tf.int64)
+            review_audio = review_audios.skip(skip_size).batch(1)
+        else:
+            review_audio = review_audios.batch(1)
+
+        return tf.data.Dataset.zip((wav_filenames, features, transcripts, review_audio))
 
     num_gpus = len(Config.available_devices)
 
-    if train_phase and FLAGS.audio_aug_mix_noise_walk_dirs:
-        # because we have to determine the shuffle size, so we could not use generator
-        noise_filenames = tf.convert_to_tensor(
-            list(collect_noise_filenames(FLAGS.audio_aug_mix_noise_walk_dirs.split(','))),
-            dtype=tf.string)
-        print(">>> Collect {} noise files for mixing audio".format(noise_filenames.shape[0]))
-        noise_dataset = (tf.data.Dataset.from_tensor_slices(noise_filenames)
-                         .map(noise_file_to_audio, num_parallel_calls=tf.data.experimental.AUTOTUNE)
-                         .shuffle(noise_filenames.shape[0])
-                         .cache(FLAGS.audio_aug_mix_noise_cache)
-                         .repeat())
-        noise_iterator = tf.compat.v1.data.make_one_shot_iterator(noise_dataset)
+    if noise_dirs_or_files:
+        noise_iterator = create_noise_iterator(noise_dirs_or_files, read_csvs)
     else:
         noise_iterator = None
+
     process_fn = partial(entry_to_features, train_phase=train_phase, noise_iterator=noise_iterator)
 
     dataset = tf.data.Dataset.from_generator(generate_values,
@@ -213,7 +223,7 @@ def split_audio_file(audio_path,
             yield time_start, time_end, samples
 
     def to_mfccs(time_start, time_end, samples):
-        features, features_len = samples_to_mfccs(samples, sample_rate)
+        features, features_len, _ = samples_to_mfccs(samples, sample_rate)
         return time_start, time_end, features, features_len
 
     def create_batch_set(bs, criteria):

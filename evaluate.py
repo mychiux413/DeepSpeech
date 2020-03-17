@@ -43,8 +43,7 @@ def sparse_tuple_to_texts(sp_tuple, alphabet):
     return [alphabet.decode(res) for res in results]
 
 
-def evaluate(test_csvs, create_model, try_loading,
-             lm_alpha, lm_beta, report_count):
+def evaluate(test_csvs, create_model, try_loading, lm_alpha, lm_beta, report_count, noise_dirs_or_files=None):
     log_info('Evaluate with LM Parameters: alpha = {}, beta = {}'.format(lm_alpha, lm_beta))
     if FLAGS.lm_binary_path:
         scorer = Scorer(lm_alpha, lm_beta,
@@ -53,13 +52,15 @@ def evaluate(test_csvs, create_model, try_loading,
     else:
         scorer = None
 
-    test_sets = [create_dataset([csv], batch_size=FLAGS.test_batch_size, train_phase=False) for csv in test_csvs]
+    if isinstance(test_csvs, str):
+        test_csvs = test_csvs.split(',')
+    test_sets = [create_dataset([csv], batch_size=FLAGS.test_batch_size, train_phase=False, noise_dirs_or_files=noise_dirs_or_files) for csv in test_csvs]
     iterator = tfv1.data.Iterator.from_structure(tfv1.data.get_output_types(test_sets[0]),
                                                  tfv1.data.get_output_shapes(test_sets[0]),
                                                  output_classes=tfv1.data.get_output_classes(test_sets[0]))
     test_init_ops = [iterator.make_initializer(test_set) for test_set in test_sets]
 
-    batch_wav_filename, (batch_x, batch_x_len), batch_y = iterator.get_next()
+    batch_wav_filename, (batch_x, batch_x_len), batch_y, _ = iterator.get_next()
 
     # One rate per layer
     no_dropout = [None] * 6
@@ -168,7 +169,7 @@ def main(_):
         sys.exit(1)
 
     from DeepSpeech import create_model, try_loading  #pylint: disable=import-outside-toplevel
-    samples = evaluate(FLAGS.test_files.split(','), create_model, try_loading, FLAGS.lm_alpha, FLAGS.lm_beta, FLAGS.report_count)
+    samples = evaluate(FLAGS.test_files.split(','), create_model, try_loading, FLAGS.lm_alpha, FLAGS.lm_beta, FLAGS.report_count, noise_dirs_or_files=FLAGS.audio_aug_mix_noise_test_dirs_or_files)
 
     if FLAGS.test_output_file:
         # Save decoded tuples as JSON, converting NumPy floats to Python floats
