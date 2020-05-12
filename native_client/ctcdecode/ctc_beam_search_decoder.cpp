@@ -29,6 +29,7 @@ DecoderState::init(const Alphabet& alphabet,
   cutoff_prob_ = cutoff_prob;
   cutoff_top_n_ = cutoff_top_n;
   ext_scorer_ = ext_scorer;
+  start_expanding_ = false;
 
   // init prefixes' root
   PathTrie *root = new PathTrie;
@@ -55,6 +56,19 @@ DecoderState::next(const double *probs,
   // prefix search over time
   for (size_t rel_time_step = 0; rel_time_step < time_dim; ++rel_time_step, ++abs_time_step_) {
     auto *prob = &probs[rel_time_step*class_dim];
+
+    // At the start of the decoding process, we delay beam expansion so that
+    // timings on the first letters is not incorrect. As soon as we see a
+    // timestep with blank probability lower than 0.999, we start expanding
+    // beams.
+    if (prob[blank_id_] < 0.999) {
+      start_expanding_ = true;
+    }
+
+    // If not expanding yet, just continue to next timestep.
+    if (!start_expanding_) {
+      continue;
+    }
 
     float min_cutoff = -NUM_FLT_INF;
     bool full_beam = false;
@@ -157,7 +171,7 @@ DecoderState::next(const double *probs,
 }
 
 std::vector<Output>
-DecoderState::decode() const
+DecoderState::decode(size_t num_results) const
 {
   std::vector<PathTrie*> prefixes_copy = prefixes_;
   std::unordered_map<const PathTrie*, float> scores;
@@ -181,15 +195,11 @@ DecoderState::decode() const
   }
 
   using namespace std::placeholders;
-  size_t num_prefixes = std::min(prefixes_copy.size(), beam_size_);
+  size_t num_returned = std::min(prefixes_copy.size(), num_results);
   std::partial_sort(prefixes_copy.begin(),
-                    prefixes_copy.begin() + num_prefixes,
+                    prefixes_copy.begin() + num_returned,
                     prefixes_copy.end(),
                     std::bind(prefix_compare_external, _1, _2, scores));
-
-  //TODO: expose this as an API parameter
-  const size_t top_paths = 1;
-  size_t num_returned = std::min(num_prefixes, top_paths);
 
   std::vector<Output> outputs;
   outputs.reserve(num_returned);

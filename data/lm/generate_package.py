@@ -1,17 +1,10 @@
 #!/usr/bin/env python
 from __future__ import absolute_import, division, print_function
 
-# Make sure we can import stuff from util/
-# This script needs to be run from the root of the DeepSpeech repository
-import os
-import sys
-
-sys.path.insert(1, os.path.join(sys.path[0], "..", ".."))
-
 import argparse
 import shutil
 
-from util.text import Alphabet, UTF8Alphabet
+from deepspeech_training.util.text import Alphabet, UTF8Alphabet
 from ds_ctcdecoder import Scorer, Alphabet as NativeAlphabet
 
 
@@ -33,28 +26,27 @@ def create_bundle(
                 if len(word) > 1:
                     vocab_looks_char_based = False
     print("{} unique words read from vocabulary file.".format(len(words)))
-    print(
-        "{} like a character based model.".format(
-            "Looks" if vocab_looks_char_based else "Doesn't look"
-        )
-    )
+
+    cbm = "Looks" if vocab_looks_char_based else "Doesn't look"
+    print("{} like a character based model.".format(cbm))
 
     if force_utf8 != None:  # pylint: disable=singleton-comparison
         use_utf8 = force_utf8.value
-        print("Forcing UTF-8 mode = {}".format(use_utf8))
     else:
         use_utf8 = vocab_looks_char_based
+        print("Using detected UTF-8 mode: {}".format(use_utf8))
 
     if use_utf8:
         serialized_alphabet = UTF8Alphabet().serialize()
     else:
+        if not alphabet_path:
+            raise RuntimeError("No --alphabet path specified, can't continue.")
         serialized_alphabet = Alphabet(alphabet_path).serialize()
 
     alphabet = NativeAlphabet()
     err = alphabet.deserialize(serialized_alphabet, len(serialized_alphabet))
     if err != 0:
-        print("Error loading alphabet: {}".format(err))
-        sys.exit(1)
+        raise RuntimeError("Error loading alphabet: {}".format(err))
 
     scorer = Scorer()
     scorer.set_alphabet(alphabet)
@@ -127,8 +119,9 @@ def main():
     )
     parser.add_argument(
         "--force_utf8",
+        type=str,
         default="",
-        help="Boolean flag, force set or unset UTF-8 mode in the scorer package. If not set, infers from the vocabulary.",
+        help="Boolean flag, force set or unset UTF-8 mode in the scorer package. If not set, infers from the vocabulary. See <https://github.com/mozilla/DeepSpeech/blob/master/doc/Decoder.rst#utf-8-mode> for further explanation",
     )
     args = parser.parse_args()
 

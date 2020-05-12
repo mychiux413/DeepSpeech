@@ -1,6 +1,8 @@
 JavaScript (NodeJS / ElectronJS)
 ================================
 
+Support for TypeScript is :download:`provided in index.d.ts<../native_client/javascript/index.d.ts>`
+
 Model
 -----
 
@@ -30,8 +32,14 @@ Metadata
 .. js:autoclass:: Metadata
    :members:
 
-MetadataItem
-------------
+CandidateTranscript
+-------------------
 
-.. js:autoclass:: MetadataItem
+.. js:autoclass:: CandidateTranscript
+   :members:
+
+TokenMetadata
+-------------
+
+.. js:autoclass:: TokenMetadata
    :members:

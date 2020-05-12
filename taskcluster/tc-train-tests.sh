@@ -16,15 +16,10 @@ virtualenv_activate "${pyalias}" "deepspeech"
 
 set -o pipefail
 pip install --upgrade pip==19.3.1 setuptools==45.0.0 wheel==0.33.6 | cat
-pip install --upgrade -r ${HOME}/DeepSpeech/ds/requirements.txt | cat
-set +o pipefail
-
-pushd ${HOME}/DeepSpeech/ds/
-    verify_ctcdecoder_url
+pushd ${HOME}/DeepSpeech/ds
+    pip install --upgrade . | cat
 popd
-
-decoder_pkg_url=$(get_python_pkg_url ${pyver_pkg} ${py_unicode_type} "ds_ctcdecoder" "${DECODER_ARTIFACTS_ROOT}")
-LD_LIBRARY_PATH=${PY37_LDPATH}:$LD_LIBRARY_PATH pip install --verbose --only-binary :all: ${PY37_SOURCE_PACKAGE} ${decoder_pkg_url} | cat
+set +o pipefail
 
 # Prepare correct arguments for training
 case "${bitrate}" in
@@ -48,6 +43,11 @@ pushd ${HOME}/DeepSpeech/ds/
     time ./bin/run-tc-ldc93s1_new.sh 249 "${sample_rate}"
     time ./bin/run-tc-ldc93s1_new.sh 1 "${sample_rate}"
     time ./bin/run-tc-ldc93s1_tflite.sh "${sample_rate}"
+    # Testing single SDB source
+    time ./bin/run-tc-ldc93s1_new_sdb.sh 220 "${sample_rate}"
+    # Testing interleaved source (SDB+CSV combination) - run twice to test preprocessed features
+    time ./bin/run-tc-ldc93s1_new_sdb_csv.sh 109 "${sample_rate}"
+    time ./bin/run-tc-ldc93s1_new_sdb_csv.sh 1 "${sample_rate}"
 popd
 
 cp /tmp/train/output_graph.pb ${TASKCLUSTER_ARTIFACTS}
@@ -62,6 +62,7 @@ cp /tmp/train/output_graph.pbmm ${TASKCLUSTER_ARTIFACTS}
 
 pushd ${HOME}/DeepSpeech/ds/
     time ./bin/run-tc-ldc93s1_checkpoint.sh
+    time ./bin/run-tc-ldc93s1_checkpoint_sdb.sh
 popd
 
 virtualenv_deactivate "${pyalias}" "deepspeech"
